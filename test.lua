@@ -1,4 +1,4 @@
-
+--[[ 
 xyz = {1,2,3,4,5,6,7,8,9,10,11,12}
 xx = {}
 yy = {}
@@ -146,4 +146,42 @@ print("清空后的数组:", unpack(my_array))
 msg = nil
 if msg == nil or #msg == 0 then
     print("msg is nil")
+end
+ ]]
+
+-- 示例数组
+local my_array = {1, 2, 3, 0, 5, 6, 7}
+
+-- 初始化标记
+local has_zero = 1
+
+-- 判断数组中是否有值为0
+for _, value in ipairs(my_array) do
+    if value == 0 then
+        has_zero = 0
+        break  -- 如果找到了0，就不需要再继续遍历
+    end
+end
+
+-- 输出结果
+if has_zero == 0 then
+    print("数组中有值为0")
+else
+    print("数组中没有值为0")
+end
+
+status1 = -1
+status2 = -1
+num = 0
+communication_status = 1
+while (status1 ~= 0 or status2 ~= 0) and num < 100 do  --0：连线成功，-1:连线失败，失败后尝试重新连接
+    num = num + 1
+    print("尝试连接第"..num.."次")
+end
+if status1 == 0 and status2 == 0 then
+    print("连接成功")
+else
+    print("连接失败")
+    communication_status = 0
+    print(communication_status)
 end

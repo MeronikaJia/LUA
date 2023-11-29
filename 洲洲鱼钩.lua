@@ -90,6 +90,13 @@ GL_pick_name = "GL_pick"
 -- 放料位
 GL_put_positions = {"GL_put1","GL_put2","GL_put3","GL_put4"}
 
+-- 速度
+speed_value = 10
+
+-- 传感器检测
+sensor_state = 1
+-- 通信状态
+communication_status = 1
 
 -- Y-报文头
 message_header = {"",""}
@@ -122,12 +129,86 @@ down_received_message = nil
 -- 初始化机器人
 function init_robot()
     -- 在此添加初始化代码
+    -- IO复位
     reset_digital_output()
+
+    -- 设置速度
+    set_speed(speed_value)
+
+    -- 返回到安全位置（GL_safe_name）
     return_to_safe_position(GL_safe_name)
-    set_speed(10)
+
+    -- 传感器检测
+    sensor_detection()
+    -- 通信检测
+    communication_connection_detection()
+
+    -- DO到等待位输出
     DO(to_waiting_position, ON)
+
     print_if_modbus_address_is_1("机器人初始化完成")
 end
+
+
+
+-- 传感器检测
+function sensor_detection()
+    set_io_states(DO_airBox, OFF) -- 关闭气缸
+    air_origin_state = {} -- 初始化气缸原点状态表
+    air_move_state = {} -- 初始化气缸动点状态表
+    sensor_state = 1 -- 设置传感器状态为正常
+    DELAY(1) -- 延时1秒
+    for i = 1, #DI_air_origin do -- 遍历气缸原点输入列表
+        if DI(DI_air_origin[i]) == ON then -- 判断气缸原点输入状态是否为ON
+            print_if_modbus_address_is_1("检测到气缸原点".. i.. "正常") -- 输出检测到气缸原点正常
+            air_origin_state[i] = 1 -- 设置气缸原点状态为正常
+        else
+            print_if_modbus_address_is_1("检测到气缸原点".. i.. "异常") -- 输出检测到气缸原点异常
+            air_origin_state[i] = 0 -- 设置气缸原点状态为异常
+            sensor_state = 0 -- 设置传感器状态为异常
+        end
+    end
+
+    set_io_states(DO_airBox, ON) -- 开启气缸
+    DELAY(1) -- 延时1秒
+    for i = 1, #DI_air_move do -- 遍历气缸动点输入列表
+        if DI(DI_air_move[i]) == ON then -- 判断气缸动点输入状态是否为ON
+            print_if_modbus_address_is_1("检测到气缸动点".. i.. "正常") -- 输出检测到气缸动点正常
+            air_move_state[i] = 1 -- 设置气缸动点状态为正常
+        else
+            print_if_modbus_address_is_1("检测到气缸动点".. i.. "异常") -- 输出检测到气缸动点异常
+            air_move_state[i] = 0 -- 设置气缸动点状态为异常
+            sensor_state = 0 -- 设置传感器状态为异常
+        end
+    end
+    DELAY(1) -- 延时1秒
+
+    set_io_states(DO_airBox, OFF) -- 关闭气缸
+end
+
+
+-- 通讯连接检测
+function communication_connection_detection()
+    communication_status = 1
+    status1 = -1
+    status2 = -1
+    num = 0
+    while (status1 ~= 0 or status2 ~= 0) and num < 100 do  --0：连线成功，-1:连线失败，失败后尝试重新连接
+        num = num + 1
+        DELAY(0.05)
+        PC1,status1=SocketClass(up_camera_server_ip,up_camera_server_port,nil,nil,nil,nil,0.050,false) --左鱼钩字符串
+        PC2,status2=SocketClass(down_camera_server_ip,down_camera_server_port,nil,nil,nil,nil,0.050,false) --右鱼钩字符串
+    end
+
+    if status1 == 0 and status2 == 0 then
+        print_if_modbus_address_is_1("连线成功")
+        communication_status = 1
+    else
+        print_if_modbus_address_is_1("连线失败")
+        communication_status = 0
+    end
+end
+
 
 
 
