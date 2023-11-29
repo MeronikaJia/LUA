@@ -133,7 +133,7 @@ function init_robot()
     reset_digital_output()
 
     -- 设置速度
-    set_speed(speed_value)
+    set_speed(5)
 
     -- 返回到安全位置（GL_safe_name）
     return_to_safe_position(GL_safe_name)
@@ -142,6 +142,9 @@ function init_robot()
     sensor_detection()
     -- 通信检测
     communication_connection_detection()
+
+    -- 设置速度
+    set_speed(speed_value)
 
     -- DO到等待位输出
     DO(to_waiting_position, ON)
@@ -398,12 +401,45 @@ function task_pick_all_fishhook(fishhook_num)
 
 end
 
+-- 相机标定
+function task_camera_calibrate(camera_flag_num)
+    -- 如果相机标记为1，上相机标定
+    if camera_flag_num == 1 then
+        camera_calibration_num = 1
+        -- 点位设置为取料位
+        point_name = GL_pick_name
+    end
+
+    -- 如果相机标志数等于2，下相机标定
+    if camera_flag_num == 2 then
+        camera_calibration_num = 2
+        -- 点位设置为下相机拍照位
+        point_name = GL_flypick_name
+    end
+
+    set_speed(5)
+    reset_digital_output()
+    return_to_safe_position(GL_safe_name)
+
+    if camera_calibration_num == 1 then
+        DO( DO_airBox[1], ON)
+    end
+    DO( DO_electroc[1], ON)
+
+    if camera_calibration_num == 1 or GL_safe_name ~= point_name then
+        MArchP( point_name + Z(2), 0, 50, 50)
+    end
+
+    PC1,status1=SocketClass("192.168.100.10",7929,nil,nil,nil,nil,0.050,false)
+
+    calibrate( point_name, 30, 10, 30, camera_calibration_num)
+end
 
 
 -- 清空数组的函数
 function clear_array(arr)
     for i = #arr, 1, -1 do
-        arr[i] = 0
+        table.remove(arr, i)
     end
 end
 
@@ -420,7 +456,6 @@ function clear_all_msg(num)
         clear_array(pick_positions_x)
         clear_array(pick_positions_y)
         clear_array(pick_positions_z)
-
     end
 
     if num == 2 then
@@ -470,7 +505,7 @@ end
 
 
 function calibrate (point,dx,dy,dr,n) --相机标定
-	PC:Send(string.format("Y,%d,1,1,0",n))
+	PC1:Send(string.format("Y,%d,1,1,0,0,0,0",n))
 	Accur("HIGH")
     for count = 0,11 do 
         if count<9 then 
@@ -480,7 +515,7 @@ function calibrate (point,dx,dy,dr,n) --相机标定
             MArchP(point+RZ(dr*(count%9-1)),0,50,50)
             DELAY(2)
         end
-        PC:Send(string.format("Y,%d,1,0,0,%f,%f,%f",n,RobotX(), RobotY(),RobotRZ()))
+        PC1:Send(string.format("Y,%d,1,0,0,%f,%f,%f",n,RobotX(), RobotY(),RobotRZ()))
         DELAY(2)
     end 
     Accur("ROUGH") 
@@ -532,33 +567,9 @@ function Main()
     calibration_signal = 0
     calibration_signal = ReadModbus(0x1000, "W")
 
-    if calibration_signal == 1 or calibration_signal == 1 then
-        if calibration_signal == 1 then
-            camera_calibration_num = 1
-            point_name = GL_pick_name
-        end
-
-        if calibration_signal == 1 then
-            camera_calibration_num = 2
-            point_name = GL_flypick_name
-        end 
-        reset_digital_output()
-        set_speed(5)
-
-        if camera_calibration_num == 1 then
-            DO( DO_airBox[1], ON)
-        end
-        DO( DO_electroc[1], ON)
-
-        return_to_safe_position(GL_safe_name)
-        if camera_calibration_num == 1 then
-            MArchP( point_name + Z(2), 0, 50, 50)
-        end
-        
-        PC,status=SocketClass("192.168.100.10",7929,nil,nil,nil,nil,0.050,false)
-
-        calibrate( point_name, 30, 10, 30, camera_calibration_num)
-
+    if calibration_signal == 1 or calibration_signal == 2 then
+        -- 执行相机标定任务
+        task_camera_calibrate(calibration_signal)
         WriteModbus(0x1000,"W",0)
         calibration_signal = 0
 
@@ -638,4 +649,8 @@ function Main()
 
 end
 
-
+init_robot()
+while sensor_state and communication_status do
+    Tcp()
+    Main()
+end

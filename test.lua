@@ -121,12 +121,12 @@ end
 --     print(value.."  "..index)
 -- end
 
-
+]]
 
 -- 清空数组的函数
 function clear_array(arr)
     for i = #arr, 1, -1 do
-        arr[i] = 0
+        table.remove(arr, i)
     end
 end
 
@@ -135,14 +135,16 @@ local my_array = {1, 2, 3, 4, 5}
 
 -- 打印原始数组
 print("原始数组:", unpack(my_array))
+print("原始数组长度:", #my_array)
 
 -- 清空数组
 clear_array(my_array)
 
 -- 打印清空后的数组
 print("清空后的数组:", unpack(my_array))
+print("清空后的数组长度:", #my_array)
 
-
+--[[
 msg = nil
 if msg == nil or #msg == 0 then
     print("msg is nil")
@@ -169,7 +171,7 @@ if has_zero == 0 then
 else
     print("数组中没有值为0")
 end
-
+--[[ 
 status1 = -1
 status2 = -1
 num = 0
@@ -185,3 +187,4 @@ else
     communication_status = 0
     print(communication_status)
 end
+ ]]
