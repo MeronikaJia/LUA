@@ -89,6 +89,7 @@ GL_flypick_name = "GL_flypick"
 GL_pick_name = "GL_pick"
 -- 放料位
 GL_put_positions = {"GL_put1","GL_put2","GL_put3","GL_put4"}
+GL_throw_position = {"GL_paoliao","GL_paoliao1"}
 
 -- 速度
 speed_value = 10
@@ -249,13 +250,13 @@ end
 
 -- 速度设置
 function set_speed(rant) --速度,加速度，减速度百分比设定，单位%（0-100）																																																																																																							
-  SpdJ(1*rant)
-  AccJ(1*rant)
-  DecJ(1*rant)
-  SpdL(20*rant)
-  AccL(250*rant)
-  DecL(250*rant)
-  print_if_modbus_address_is_1("设置速度为: " .. rant .. "%")
+    SpdJ(1*rant)
+    AccJ(1*rant)
+    DecJ(1*rant)
+    SpdL(20*rant)
+    AccL(250*rant)
+    DecL(250*rant)
+    print_if_modbus_address_is_1("设置速度为: " .. rant .. "%")
 end
 
 
@@ -401,6 +402,39 @@ function task_pick_all_fishhook(fishhook_num)
 
 end
 
+-- 
+function task_teach_pick_a_fishhook(put_position_name, air_num)
+
+    MArchP( put_position_name, 0, 50, 50)
+    WAIT(DI, DI_air_origin[air_num], ON)
+
+    DO( DO_airBox[air_num], ON)
+    WAIT(DI, DI_air_move[air_num], ON)
+
+    DO( DO_electroc[air_num], ON)
+    DELAY(0.2)
+
+    DO( DO_airBox[air_num], OFF)
+    WAIT(DI, DI_air_origin[air_num], ON)
+ 
+end
+
+function task_down_camera_teach(array_put_position_name)
+    set_speed(5)
+    reset_digital_output()
+    return_to_safe_position(GL_safe_name)
+
+    for i = 1, #array_put_position_name, 1 do
+        task_teach_pick_a_fishhook(array_put_position_name[i], i)
+    end
+    
+    return_to_safe_position(GL_flypick_name)
+
+    DELAY(1)
+    PC1:Send(string.format("Y,2,2,2,0,0,0,0"))
+
+end
+
 -- 相机标定
 function task_camera_calibrate(camera_flag_num)
     -- 如果相机标记为1，上相机标定
@@ -426,6 +460,7 @@ function task_camera_calibrate(camera_flag_num)
     end
     DO( DO_electroc[1], ON)
 
+    DELAY(2)
     if camera_calibration_num == 1 or GL_safe_name ~= point_name then
         MArchP( point_name + Z(2), 0, 50, 50)
     end
@@ -434,6 +469,7 @@ function task_camera_calibrate(camera_flag_num)
 
     calibrate( point_name, 30, 10, 30, camera_calibration_num)
 end
+
 
 
 -- 清空数组的函数
@@ -566,13 +602,27 @@ function Main()
     -- 标定信号
     calibration_signal = 0
     calibration_signal = ReadModbus(0x1000, "W")
+    teach_signal = calibration_signal
 
     if calibration_signal == 1 or calibration_signal == 2 then
         -- 执行相机标定任务
         task_camera_calibrate(calibration_signal)
         WriteModbus(0x1000,"W",0)
         calibration_signal = 0
+        teach_signal = 0
+        DELAY(1)
+        return_to_safe_position(GL_safe_name)
+        DO(to_waiting_position, ON)
+    end
 
+    if teach_signal == 3 then
+        task_down_camera_teach(GL_put_positions)
+        DELAY(1)
+        return_to_safe_position(GL_safe_name)
+        DO(to_waiting_position, ON)
+        WriteModbus(0x1000,"W",0)
+        calibration_signal = 0
+        teach_signal = 0
     end
 
     -- 如果目标位置为等待位置
@@ -622,7 +672,7 @@ function Main()
         -- 设置前往等待位置标记为已关闭
         DO(to_waiting_position, OFF)
         -- 投掷
-        drop()
+        drop(GL_throw_position[1])
         -- 设置投掷完成标记为已开启
         DO(throw_completed, ON)
         -- 循环直到目标位置不再为投掷位置1
@@ -638,7 +688,7 @@ function Main()
         -- 设置前往等待位置标记为已关闭
         DO(to_waiting_position, OFF)
         -- 投掷
-        drop()
+        drop(GL_throw_position[2])
         -- 设置投掷完成标记为已开启
         DO(throw_completed, ON)
         -- 循环直到目标位置不再为投掷位置2
