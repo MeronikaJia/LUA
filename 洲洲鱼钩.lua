@@ -92,7 +92,7 @@ GL_put_positions = {"GL_put1","GL_put2","GL_put3","GL_put4"}
 GL_throw_position = {"GL_paoliao","GL_paoliao1"}
 
 -- 速度
-speed_value = 10
+speed_value = 5
 
 -- 传感器检测
 sensor_state = 1
@@ -346,6 +346,8 @@ end
 function task_put_all_fishhook(fishhook_num)
     Accur("STANDARD")
 
+    print_if_modbus_address_is_1("正在执行放料操作")
+
     for i, value in ipairs(DI_air_origin) do
         WAIT(DI, value, ON)
     end
@@ -389,6 +391,7 @@ end
 
 function task_pick_all_fishhook(fishhook_num)
 
+    print_if_modbus_address_is_1("正在执行取料操作")
     for i, value in ipairs(DI_air_origin) do
         WAIT(DI, value, ON)
     end
@@ -424,12 +427,13 @@ function task_down_camera_teach(array_put_position_name)
     reset_digital_output()
     return_to_safe_position(GL_safe_name)
 
+    print_if_modbus_address_is_1("正在执行下相机示教操作")
+
     for i = 1, #array_put_position_name, 1 do
         task_teach_pick_a_fishhook(array_put_position_name[i], i)
     end
     
     return_to_safe_position(GL_flypick_name)
-
     DELAY(1)
     PC1:Send(string.format("Y,2,2,2,0,0,0,0"))
 
@@ -450,6 +454,7 @@ function task_camera_calibrate(camera_flag_num)
         -- 点位设置为下相机拍照位
         point_name = GL_flypick_name
     end
+    print_if_modbus_address_is_1("正在执行相机标定操作"..camera_flag_num)
 
     set_speed(5)
     reset_digital_output()
@@ -465,7 +470,7 @@ function task_camera_calibrate(camera_flag_num)
         MArchP( point_name + Z(2), 0, 50, 50)
     end
 
-    PC1,status1=SocketClass("192.168.100.10",7929,nil,nil,nil,nil,0.050,false)
+    PC1,status1=SocketClass(up_camera_server_ip,up_camera_server_port,nil,nil,nil,nil,0.050,false)
 
     calibrate( point_name, 30, 10, 30, camera_calibration_num)
 end
@@ -514,29 +519,26 @@ function drop(point)
     --DO(1,4,0)  
     
     MArchP(point,0,-highZ1,-highZ2)
-    --DO(7,ON) --推进抛料区的磁铁
+    print_if_modbus_address_is_1("正在执行抛料操作")
+    -- 电磁关
+    set_io_states(DO_electroc,"OFF")
+
+    --组合信号
+	--DO(5,4,0) 
     
     -- 气缸开
 	set_io_states(DO_airBox,"ON")
 	
 	--组合信号
 	--DO(1,4,15) 
-	
-	DELAY(1)
-	-- 电磁关
-    set_io_states(DO_electroc,"OFF")
-    
-    --组合信号
-	--DO(5,4,0) 
-
+    WAIT(DI,DI_air_move[#DI_air_move],ON)
     -- 气缸关
     set_io_states(DO_airBox,"OFF")
     
     --组合信号
     --DO(1,4,0) 
-    
-	DELAY(1)
-	--DO(7,OFF) --缩回抛料区的磁铁
+    WAIT(DI,DI_air_origin[#DI_air_origin],ON)
+	
 end
 
 
@@ -582,7 +584,7 @@ function Tcp()
     
     up_received_message=PC1:Receive()
     down_received_message=PC2:Receive()
-    
+    print_if_modbus_address_is_1("收到数据")
 end
 
 --[[
@@ -616,7 +618,10 @@ function Main()
     end
 
     if teach_signal == 3 then
+
+        PC1,status1=SocketClass(up_camera_server_ip,up_camera_server_port,nil,nil,nil,nil,0.050,false)
         task_down_camera_teach(GL_put_positions)
+
         DELAY(1)
         return_to_safe_position(GL_safe_name)
         DO(to_waiting_position, ON)
@@ -701,6 +706,12 @@ end
 
 init_robot()
 while sensor_state and communication_status do
+
+    speed_value = ReadModbus(0x3000, "W")
+    if speed_value < 0 or speed_value > 100 then
+        speed_value = 5
+    end
+
     Tcp()
     Main()
 end
