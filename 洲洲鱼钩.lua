@@ -91,8 +91,11 @@ GL_pick_name = "GL_pick"
 GL_put_positions = {"GL_put1","GL_put2","GL_put3","GL_put4"}
 GL_throw_position = {"GL_paoliao","GL_paoliao1"}
 
+GL_up_camera_calibrate_position = "GL_calibrate"
+
 -- 速度
 speed_value = 5
+MArchP_top_height = -15
 
 -- 传感器检测
 sensor_state = 1
@@ -130,15 +133,24 @@ down_received_message = nil
 -- 初始化机器人
 function init_robot()
     -- 在此添加初始化代码
+    RobotServoOff()
+    SetPayload(1.0,0,0,0,0,0,0.005)--设置负载和惯量
+    RobotServoOn()
+    Accur("ROUGH")
+    MovJ(3,0)
+    DELAY(1)
     -- IO复位
     reset_digital_output()
 
     -- 设置速度
     set_speed(5)
+    
+    WriteModbus(0x1000,"W",0)
 
     -- 返回到安全位置（GL_safe_name）
     return_to_safe_position(GL_safe_name)
-
+    drop(GL_throw_position[1])
+    return_to_safe_position(GL_safe_name)
     -- 传感器检测
     sensor_detection()
     -- 通信检测
@@ -217,7 +229,7 @@ end
 
 
 -- 打印函数，仅在指定的 Modbus 地址值为 1 时打印指定的内容
-print_modbus_address_value = 0 --将地址打印判断置为 0 (为1打印) 
+print_modbus_address_value = 1 --将地址打印判断置为 0 (为1打印) 
 
 function print_if_modbus_address_is_1(content_to_print)
     if print_modbus_address_value == 1 then
@@ -265,11 +277,12 @@ function return_to_safe_position(point)
 	print_if_modbus_address_is_1("正在执行回安全位操作")
 	highZ1=RobotZ("Z")
     highZ2=ReadPoint(point,"Z")
-    MArchP(point,0,-highZ1,-highZ2)
+    MArchP(point,MArchP_top_height,-highZ1,-highZ2)
 end
 
 -- 分割数组xyr 到x,y,r
 function split_array_xyr( xyr, x, y, r)
+	print_arr(xyr)
     for i, value in ipairs(xyr) do
         if i % 3 == 1 then
             table.insert(x, value)
@@ -285,17 +298,24 @@ end
 -- 解析接收到的数组
 function parse_received_array(received_array,array_num)
     -- 检查数组是否为空
-    if #received_array == 0 or received_array == nil then
-        print_if_modbus_address_is_1("接收到的数组为空")
+    
+    if received_array == nil then
+    	print_if_modbus_address_is_1("接收到的数组为空")
         return
     end
-
+    
+    if #received_array == 0 then
+        print_if_modbus_address_is_1("接收到的数组长度为0")
+        return
+    end
+    
+    print_arr(received_array)
     print_if_modbus_address_is_1("接收到数组")
     
     message_header[array_num] = received_array[1]
     camera_number[array_num] = tonumber(received_array[2])
     operating_mode[array_num] = tonumber(received_array[3])
-
+    print_if_modbus_address_is_1(unpack(received_array))
     if operating_mode[array_num] == 2 then
         print_if_modbus_address_is_1("生产模式")
         
@@ -327,7 +347,7 @@ function task_put_a_fishhook(GL_put_num, air_num,
         X(tonumber(x_point)) +
         Y(tonumber(y_point)) +
         RZ(tonumber(r_point)),
-        0,50,50
+        MArchP_top_height,50,50
     )
     DELAY(0.2)
     DO(air_num,ON)
@@ -341,6 +361,18 @@ function task_put_a_fishhook(GL_put_num, air_num,
     repeat  until DI(air_origin_num) == ON
 end
 
+
+function print_arr(arr)
+	
+	if arr == nil then
+		print_if_modbus_address_is_1("arr空，不用清空")
+		return
+	end
+	
+    for i=1, #arr do
+    	print_if_modbus_address_is_1(arr[i])
+    end
+end
 
 
 function task_put_all_fishhook(fishhook_num)
@@ -374,13 +406,13 @@ function task_pick_a_fishhook(tool_num, air_num,
             X(tonumber(x_point)) +
             Y(tonumber(y_point)) +
             RZ(tonumber(r_point)),
-            0,50,50
+            MArchP_top_height,50,50
     )
     DELAY(0.2)
     DO(air_num,ON)
 
     repeat  until DI(air_move_num) == ON
-    DO(electroc,OFF)
+    DO(electroc,ON)
 
     DELAY(0.4)
     DO(air_num,OFF)
@@ -397,10 +429,21 @@ function task_pick_all_fishhook(fishhook_num)
     end
 
     for i = 1, fishhook_num do
+    	print_if_modbus_address_is_1(tool_coordinate[i])
+    	print_if_modbus_address_is_1(DO_airBox[i])
+    	print_if_modbus_address_is_1(DO_electroc[i])
+    	print_if_modbus_address_is_1(DI_air_origin[i])
+    	print_if_modbus_address_is_1(DI_air_move[i])
+    	print_if_modbus_address_is_1(pick_positions_x[i])
+    	print_if_modbus_address_is_1(pick_positions_y[i])
+    	print_if_modbus_address_is_1(pick_positions_r[i])
+    	print_if_modbus_address_is_1(GL_pick_name)
+    	
         task_pick_a_fishhook(tool_coordinate[i], DO_airBox[i], 
                             DO_electroc[i], DI_air_origin[i], 
                             DI_air_move[i], pick_positions_x[i], 
-                            pick_positions_y[i], pick_positions_r[i])
+                            pick_positions_y[i], pick_positions_r[i],
+                            GL_pick_name)
     end
 
 end
@@ -408,7 +451,7 @@ end
 -- 
 function task_teach_pick_a_fishhook(put_position_name, air_num)
 
-    MArchP( put_position_name, 0, 50, 50)
+    MArchP( put_position_name, MArchP_top_height, 50, 50)
     WAIT(DI, DI_air_origin[air_num], ON)
 
     DO( DO_airBox[air_num], ON)
@@ -445,7 +488,7 @@ function task_camera_calibrate(camera_flag_num)
     if camera_flag_num == 1 then
         camera_calibration_num = 1
         -- 点位设置为取料位
-        point_name = GL_pick_name
+        point_name = GL_up_camera_calibrate_position
     end
 
     -- 如果相机标志数等于2，下相机标定
@@ -460,25 +503,28 @@ function task_camera_calibrate(camera_flag_num)
     reset_digital_output()
     return_to_safe_position(GL_safe_name)
 
-    if camera_calibration_num == 1 then
-        DO( DO_airBox[1], ON)
-    end
     DO( DO_electroc[1], ON)
+    DO( DO_electroc[2], ON)
 
     DELAY(2)
     if camera_calibration_num == 1 or GL_safe_name ~= point_name then
-        MArchP( point_name + Z(2), 0, 50, 50)
+        MArchP( point_name + Z(2), MArchP_top_height, 50, 50)
     end
 
     PC1,status1=SocketClass(up_camera_server_ip,up_camera_server_port,nil,nil,nil,nil,0.050,false)
 
-    calibrate( point_name, 30, 10, 30, camera_calibration_num)
+    calibrate( point_name, 5, 5, 5, camera_calibration_num)
 end
 
 
 
 -- 清空数组的函数
 function clear_array(arr)
+	if arr == nil then
+		print_if_modbus_address_is_1("arr空，跳出clear")
+		return
+	end
+	
     for i = #arr, 1, -1 do
         table.remove(arr, i)
     end
@@ -511,14 +557,14 @@ end
 function drop(point)   
 	highZ1=RobotZ("Z")
     highZ2=ReadPoint(point,"Z")
-    
+    print(highZ2)
     -- 气缸关
     set_io_states(DO_airBox,"OFF")
     
     --组合信号
     --DO(1,4,0)  
-    
-    MArchP(point,0,-highZ1,-highZ2)
+    print(point)
+    MArchP(point,MArchP_top_height,highZ1,highZ2)
     print_if_modbus_address_is_1("正在执行抛料操作")
     -- 电磁关
     set_io_states(DO_electroc,"OFF")
@@ -538,7 +584,7 @@ function drop(point)
     --组合信号
     --DO(1,4,0) 
     WAIT(DI,DI_air_origin[#DI_air_origin],ON)
-	
+	DO(throw_completed, ON)
 end
 
 
@@ -547,10 +593,10 @@ function calibrate (point,dx,dy,dr,n) --相机标定
 	Accur("HIGH")
     for count = 0,11 do 
         if count<9 then 
-        	MArchP(point+X(dx*(count%3-1))+Y(dy*(FLOOR(count/3)-1)),0,50,50)
+            MArchP(point+X(dx*(count%3-1))+Y(dy*(FLOOR(count/3)-1)),MArchP_top_height,50,50)
             DELAY(2)
         else
-            MArchP(point+RZ(dr*(count%9-1)),0,50,50)
+            MArchP(point+RZ(dr*(count%9-1)),MArchP_top_height,50,50)
             DELAY(2)
         end
         PC1:Send(string.format("Y,%d,1,0,0,%f,%f,%f",n,RobotX(), RobotY(),RobotRZ()))
@@ -560,10 +606,10 @@ function calibrate (point,dx,dy,dr,n) --相机标定
 end
 
 
-up_camera_server_ip = "192.168.100.10"
-up_camera_server_port = 7929
+up_camera_server_ip = "192.168.0.110"
+up_camera_server_port = 7920
 
-down_camera_server_ip = "192.168.100.10"
+down_camera_server_ip = "192.168.0.110"
 down_camera_server_port = 7930
 
 status1 = -1
@@ -584,7 +630,7 @@ function Tcp()
     
     up_received_message=PC1:Receive()
     down_received_message=PC2:Receive()
-    print_if_modbus_address_is_1("收到数据")
+    print_arr(up_received_message)
 end
 
 --[[
@@ -638,7 +684,9 @@ function Main()
     end
 
     -- 如果目标位置为拾取位置
-    if DI(go_pick_position) == ON then
+   
+    if DI(go_pick_position) == ON and #pick_positions ~= 0 then
+    	print_arr(pick_positions)
         -- 设置放置完成标记为已关闭
         DO(put_completed, OFF)
         -- 设置到等待位置标记为已关闭
@@ -655,7 +703,7 @@ function Main()
     end
 
     -- 如果目标位置为放置位置
-    if DI(go_put_position) == ON then
+    if DI(go_put_position) == ON and #put_positions ~= 0 then
         -- 设置抓取完成标记为已关闭
         DO(pick_completed, OFF)
         -- 设置到等待位置标记为已关闭
@@ -684,6 +732,9 @@ function Main()
         repeat until DI(go_throw_position_1) == OFF
         -- 设置投掷完成标记为已关闭
         DO(throw_completed, OFF)
+        
+        return_to_safe_position(GL_safe_name)
+        DO(to_waiting_position, ON)
     end
 
     -- 如果目标位置为投掷位置2
@@ -700,18 +751,23 @@ function Main()
         repeat until DI(go_throw_position_2) == OFF
         -- 设置投掷完成标记为已关闭
         DO(throw_completed, OFF)
+        
+        return_to_safe_position(GL_safe_name)
+        DO(to_waiting_position, ON)
     end
 
 end
 
+
+
 init_robot()
 while sensor_state and communication_status do
-
+    --print_modbus_address_value = ReadModbus(0x3001, "W") --将地址打印判断置为 0 (为1打印) 
     speed_value = ReadModbus(0x3000, "W")
-    if speed_value < 0 or speed_value > 100 then
+    if speed_value <= 0 or speed_value > 100 then
         speed_value = 5
     end
-
+    set_speed(speed_value)
     Tcp()
     Main()
 end
