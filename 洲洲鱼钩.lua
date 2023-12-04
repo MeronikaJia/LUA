@@ -357,9 +357,17 @@ function task_put_a_fishhook(GL_put_num, air_num,
     MArchP( GL_put_num + 
         X(tonumber(x_point)) +
         Y(tonumber(y_point)) +
+        Z(10) +
         RZ(tonumber(r_point)),
         MArchP_top_height,50,50
     )
+    
+    MovL( GL_put_num + 
+        X(tonumber(x_point)) +
+        Y(tonumber(y_point)) +
+        RZ(tonumber(r_point))
+    )
+    
     DELAY(0.2)
     DO(air_num,ON)
 
