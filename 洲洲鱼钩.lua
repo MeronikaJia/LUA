@@ -47,7 +47,7 @@
 
 -- 气缸
 DO_airBox = {1,2,3,4}
--- 电磁
+-- 电磁  
 DO_electroc = {5,6,7,8}
 
 -- DO9：机器人到等待位
@@ -88,7 +88,9 @@ GL_flypick_name = "GL_flypick"
 -- 取料位
 GL_pick_name = "GL_pick"
 -- 放料位
-GL_put_positions = {"GL_put1","GL_put2","GL_put3","GL_put4"}
+--GL_put_positions = {"GL_put1","GL_put2","GL_put3","GL_put4"}
+GL_put_positions = {"GL_paoliao1","GL_paoliao1","GL_paoliao1","GL_paoliao1"}
+
 GL_throw_position = {"GL_paoliao","GL_paoliao1"}
 
 GL_up_camera_calibrate_position = "GL_calibrate"
@@ -137,7 +139,7 @@ function init_robot()
     SetPayload(1.0,0,0,0,0,0,0.005)--设置负载和惯量
     RobotServoOn()
     Accur("ROUGH")
-    MovJ(3,0)
+    MovJ(3, -10)
     DELAY(1)
     -- IO复位
     reset_digital_output()
@@ -150,6 +152,7 @@ function init_robot()
     -- 返回到安全位置（GL_safe_name）
     return_to_safe_position(GL_safe_name)
     drop(GL_throw_position[1])
+    DO(throw_completed, OFF)
     return_to_safe_position(GL_safe_name)
     -- 传感器检测
     sensor_detection()
@@ -365,7 +368,7 @@ end
 function print_arr(arr)
 	
 	if arr == nil then
-		print_if_modbus_address_is_1("arr空，不用清空")
+		print_if_modbus_address_is_1("arr空， 无数值")
 		return
 	end
 	
@@ -412,8 +415,11 @@ function task_pick_a_fishhook(tool_num, air_num,
     DO(air_num,ON)
 
     repeat  until DI(air_move_num) == ON
-    DO(electroc,ON)
 
+    if  no_electroc_signal == 1 then
+        DO(electroc,ON)
+    end
+    
     DELAY(0.4)
     DO(air_num,OFF)
 
@@ -457,7 +463,10 @@ function task_teach_pick_a_fishhook(put_position_name, air_num)
     DO( DO_airBox[air_num], ON)
     WAIT(DI, DI_air_move[air_num], ON)
 
+    
     DO( DO_electroc[air_num], ON)
+    
+    
     DELAY(0.2)
 
     DO( DO_airBox[air_num], OFF)
@@ -644,6 +653,9 @@ USER DI13	机器人去抛料位2
 
 function Main()
 
+    no_electroc_signal = ReadModbus(0x1001, "W")
+
+
     parse_received_array( up_received_message, 1)
     parse_received_array( down_received_message, 2)
 
@@ -728,13 +740,16 @@ function Main()
         drop(GL_throw_position[1])
         -- 设置投掷完成标记为已开启
         DO(throw_completed, ON)
+        
+        return_to_safe_position(GL_safe_name)
+        DO(to_waiting_position, ON)
+        
         -- 循环直到目标位置不再为投掷位置1
         repeat until DI(go_throw_position_1) == OFF
         -- 设置投掷完成标记为已关闭
         DO(throw_completed, OFF)
         
-        return_to_safe_position(GL_safe_name)
-        DO(to_waiting_position, ON)
+        
     end
 
     -- 如果目标位置为投掷位置2
@@ -747,13 +762,15 @@ function Main()
         drop(GL_throw_position[2])
         -- 设置投掷完成标记为已开启
         DO(throw_completed, ON)
+        
+        return_to_safe_position(GL_safe_name)
+        DO(to_waiting_position, ON)
+        
         -- 循环直到目标位置不再为投掷位置2
         repeat until DI(go_throw_position_2) == OFF
         -- 设置投掷完成标记为已关闭
         DO(throw_completed, OFF)
         
-        return_to_safe_position(GL_safe_name)
-        DO(to_waiting_position, ON)
     end
 
 end
