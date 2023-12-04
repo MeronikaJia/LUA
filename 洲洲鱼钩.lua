@@ -46,7 +46,12 @@
 -----------------------------
 
 -- 气缸
-DO_airBox = {1,2,3,4}
+--DO_airBox = {1,2,3,4}
+-- 电磁  
+--DO_electroc = {5,6,7,8}
+
+-- 气缸
+DO_airBox = {4,1,3,2}
 -- 电磁  
 DO_electroc = {5,6,7,8}
 
@@ -65,6 +70,9 @@ throw_completed = 12
 
 -- 工具坐标系
 tool_coordinate = {1,2,3,4}
+
+
+
 
 -- 气缸原点
 DI_air_origin = {1,3,5,7}
@@ -388,10 +396,16 @@ function task_put_all_fishhook(fishhook_num)
     end
 
     for i = 1, fishhook_num do
+        -- 将DO_airBox[i]的值赋给tool_serial_number变量
+        tool_serial_number = DO_airBox[i]
+
         task_put_a_fishhook(GL_put_positions[i], DO_airBox[i], 
-                            DO_electroc[i], DI_air_origin[i], 
-                            DI_air_move[i], put_positions_x[i], 
-                            put_positions_y[i], put_positions_r[i])
+                            DO_electroc[tool_serial_number], 
+                            DI_air_origin[tool_serial_number], 
+                            DI_air_move[tool_serial_number], 
+                            put_positions_x[i], 
+                            put_positions_y[i], 
+                            put_positions_r[i])
     end
 
     Accur("ROUGH")
@@ -419,7 +433,7 @@ function task_pick_a_fishhook(tool_num, air_num,
     if  no_electroc_signal == 1 then
         DO(electroc,ON)
     end
-    
+
     DELAY(0.4)
     DO(air_num,OFF)
 
@@ -445,10 +459,18 @@ function task_pick_all_fishhook(fishhook_num)
     	print_if_modbus_address_is_1(pick_positions_r[i])
     	print_if_modbus_address_is_1(GL_pick_name)
     	
-        task_pick_a_fishhook(tool_coordinate[i], DO_airBox[i], 
-                            DO_electroc[i], DI_air_origin[i], 
-                            DI_air_move[i], pick_positions_x[i], 
-                            pick_positions_y[i], pick_positions_r[i],
+        -- 将DO_airBox[i]的值赋给tool_serial_number变量
+        tool_serial_number = DO_airBox[i]
+        
+        -- 根据气缸序号确定电磁、气缸动原点、工具坐标
+        task_pick_a_fishhook(tool_coordinate[tool_serial_number], 
+                            DO_airBox[i], 
+                            DO_electroc[tool_serial_number],
+                            DI_air_origin[tool_serial_number], 
+                            DI_air_move[tool_serial_number], 
+                            pick_positions_x[i], 
+                            pick_positions_y[i], 
+                            pick_positions_r[i],
                             GL_pick_name)
     end
 
