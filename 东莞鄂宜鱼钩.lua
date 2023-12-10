@@ -604,29 +604,41 @@ function drop(point)
     -- 电磁关
     set_io_states(DO_electroc,"OFF")
 
-    
     -- 气缸开
 	set_io_states(DO_airBox,"ON")
-	
-
     WAIT(DI,DI_air_move[#DI_air_move],ON)
+    
     -- 气缸关
     set_io_states(DO_airBox,"OFF")
     WAIT(DI,DI_air_origin[#DI_air_origin],ON)
+    
+--[[
+        set_io_states(DO_airBox,"ON")
+    WAIT(DI,DI_air_move[#DI_air_move],ON)
+    
+    set_io_states(DO_airBox,"OFF")
+    WAIT(DI,DI_air_origin[#DI_air_origin],ON)
+    ]]
     
     --旋转180度再抛料
     MArchP(point + RZ(180),MArchP_top_height,highZ1,highZ2)
  
-    -- 电磁关
-    set_io_states(DO_electroc,"OFF")
     -- 气缸开
 	set_io_states(DO_airBox,"ON")
     WAIT(DI,DI_air_move[#DI_air_move],ON)
+    
     -- 气缸关
     set_io_states(DO_airBox,"OFF")
-    
-
     WAIT(DI,DI_air_origin[#DI_air_origin],ON)
+    
+--[[
+        set_io_states(DO_airBox,"ON")
+    WAIT(DI,DI_air_move[#DI_air_move],ON)
+    
+    set_io_states(DO_airBox,"OFF")
+    WAIT(DI,DI_air_origin[#DI_air_origin],ON)
+        ]]
+
 	DO(throw_completed, ON)
 end
 
