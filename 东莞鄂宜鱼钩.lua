@@ -75,8 +75,6 @@ throw_completed = 12
 tool_coordinate = {1,2,3,4}
 
 
-
-
 -- 气缸原点
 DI_air_origin = {1,3,5,7}
 -- 气缸动点
@@ -244,7 +242,6 @@ function communication_connection_detection()
         communication_status = 0
     end
 end
-
 
 
 
