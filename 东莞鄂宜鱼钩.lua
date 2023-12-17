@@ -43,8 +43,8 @@
     LX1，LY1，LR1-左鱼钩取放位姿，
     RX1，RY1，RR1-右鱼钩取放位姿
 ]]
------------------------------
-
+----------------------------------------------
+-----------------io definition----------------
 -- 气缸
 DO_airBox = {1,2,3,4}
 DO_airBox_put = {4,1,2,3}
@@ -71,10 +71,6 @@ put_completed = 11
 throw_completed = 12
 
 
--- 工具坐标系
-tool_coordinate = {1,2,3,4}
-
-
 -- 气缸原点
 DI_air_origin = {1,3,5,7}
 -- 气缸动点
@@ -89,7 +85,16 @@ go_put_position = 11
 go_throw_position_1 = 12
 -- DI13: 机器人去抛料位2
 go_throw_position_2 = 13
+-----------------io definition----------------
 
+
+-----------------Tool coordinate system definition----------------
+-- 工具坐标系
+tool_coordinate = {1,2,3,4}
+-----------------Tool coordinate system definition----------------
+
+
+----------------Point definition---------------------
 -- 安全位
 GL_safe_name= "GL_flypick"
 -- 下相机拍照位
@@ -104,27 +109,35 @@ GL_throw_position = {"GL_paoliao","GL_paoliao1"}
 
 GL_up_camera_calibrate_position = "GL_calibrate"
 
+----------------Point definition---------------------
+
+
+----------------value definition---------------------
 -- 速度
-speed_value = 5
-MArchP_top_height = -15
-MArchP_top_height_put = -120
+speed_value = 100
+speed_put_translate_value = 5
+
+pick_postion_z = ReadPoint("GL_pick","Z")
+put_postion_z = ReadPoint("GL_put1","Z")
+
+MArchP_top_height = -5
+MArchP_top_height_put = put_postion_z + 20
+MArchP_top_height_pick = pick_postion_z + 10
 
 
 pick_arrive_z = {0, 0, 0, 0}
-
-
 put_arrive_z = {0, 0, 0, 0}
 
-put_translate_x = {-5, -3, -3, -3}
+put_translate_x = {15, 15, 15, 15}
 put_translate_y = {0, 0, 0, 0}
-
-
-
 
 -- 传感器检测
 sensor_state = 1
 -- 通信状态
 communication_status = 1
+----------------value definition---------------------
+
+
 
 -- Y-报文头
 message_header = {"",""}
@@ -162,7 +175,7 @@ function init_robot()
     RobotServoOn()
     DELAY(2)
     Accur("ROUGH")
-    MovJ(3, -10)
+    MovJ(3, MArchP_top_height)
     DELAY(1)
     -- IO复位
     reset_digital_output()
@@ -242,6 +255,7 @@ function communication_connection_detection()
         communication_status = 0
     end
 end
+
 
 
 
@@ -383,15 +397,15 @@ function task_put_a_fishhook(GL_put_num, air_num,
     
     DO(electroc,OFF)
     
-    translate_y = 0
-    
-    
+    set_speed(speed_put_translate_value)
+
     MovL( GL_put_num + 
     X(tonumber(x_point) + put_translate_value_x) +
     Y(tonumber(y_point) + put_translate_value_y) +
     RZ(tonumber(r_point))
     )
     
+    set_speed(speed_value)
 end
 
 
@@ -429,30 +443,39 @@ end
 
 
 
-function task_pick_a_fishhook(tool_num, air_num, 
+function task_pick_a_fishhook(i, tool_num, air_num, 
                             electroc, air_origin_num, 
                             air_move_num, x_point, 
                             y_point, r_point, GL_pick_name,
                             increment_pick_value_z)
     ChangeTF(tool_num)
-
+    
+    MArchP_top = 0
+    if i == 1 then
+    	MArchP_top = MArchP_top_height
+    else
+        MArchP_top = MArchP_top_height_pick
+    end
+    
     MArchP( GL_pick_name + 
             X(tonumber(x_point)) +
             Y(tonumber(y_point)) +
             Z(10) +
             RZ(tonumber(r_point)),
-            MArchP_top_height,50,50
+            MArchP_top,50,50
     )
+
+    DO(air_num,ON)
+    repeat  until DI(air_move_num) == ON
+
     MovL( GL_pick_name + 
             X(tonumber(x_point)) +
             Y(tonumber(y_point)) +
             Z(increment_pick_value_z) +
             RZ(tonumber(r_point))
     )
-    
-    DO(air_num,ON)
 
-    repeat  until DI(air_move_num) == ON
+    DELAY(0.2)
     DO(electroc,ON)
     
     DELAY(0.2)
@@ -473,7 +496,8 @@ function task_pick_all_fishhook(fishhook_num)
         tool_serial_number = DO_airBox[i]
         
         -- 根据气缸序号确定电磁、气缸动原点、工具坐标
-        task_pick_a_fishhook(tool_coordinate[tool_serial_number], 
+        task_pick_a_fishhook(i, 
+                            tool_coordinate[tool_serial_number], 
                             DO_airBox[i], 
                             DO_electroc[tool_serial_number],
                             DI_air_origin[tool_serial_number], 
@@ -543,7 +567,7 @@ function task_camera_calibrate(camera_flag_num)
     DO( DO_electroc[1], ON)
     DO( DO_electroc[2], ON)
 
-    DELAY(2)
+    DELAY(5)
     if camera_calibration_num == 1 or GL_safe_name ~= point_name then
         MArchP( point_name + Z(2), MArchP_top_height, 50, 50)
     end
