@@ -51,8 +51,6 @@ DO_airBox_put = { 4, 1, 2, 3 }
 -- 电磁
 DO_electroc = { 5, 6, 7, 8 }
 
-electroc_off_put_delay = { 0.5, 0.3, 0.3, 0.3 }
-
 -- 气缸
 --DO_airBox = {4,1,3,2}
 -- 电磁
@@ -115,9 +113,9 @@ GL_up_camera_calibrate_position = "GL_calibrate"
 ----------------value definition---------------------
 -- 速度
 speed_value = 100
-speed_put_translate_value = 5
+speed_put_translate_value = 50
 speed_put_translate_z_value = 5
-
+MultiWriteModbus(0x3000, 3, "W", { speed_value, speed_put_translate_value, speed_put_translate_z_value })
 
 pick_postion_z = ReadPoint("GL_pick", "Z")
 put_postion_z = ReadPoint("GL_put1", "Z")
@@ -126,23 +124,36 @@ MArchP_top_height = -5
 MArchP_top_height_put = put_postion_z + 20
 MArchP_top_height_pick = pick_postion_z + 10
 
-
+--夹爪z轴高度
 pick_arrive_z = { 0, 0, 0, 0 }
-put_arrive_z = { 0, 0, 0, 0 }
+MultiWriteModbus(0x3011, 4, "W", pick_arrive_z)
 
-put_translate_x = { 15, 15, 15, 15 }
-MultiWriteModbus(0x300A, 4, "W", { 15, 15, 15, 15 })
+put_arrive_z = { -0.8, -2.3, -0.8, -0.5 }
+MultiWriteModbus(0x3015, 4, "W", put_arrive_z)
 
-put_translate_y = { 0, 0, 0, 0 }
-MultiWriteModbus(0x3006, 4, "W", { 0, 0, 0, 0 })
+--断磁后停留时间
+electroc_off_put_delay = { 0.3, 0.3, 0.5, 0.3 }
+MultiWriteModbus(0x301A, 4, "W", electroc_off_put_delay)
+
+--抹的方向
+put_translate_x = { 0, 2, 5, 0 }
+MultiWriteModbus(0x3003, 4, "W", put_translate_x)
+
+put_translate_y = { -8, -8, 8, 8 }
+MultiWriteModbus(0x3007, 4, "W", put_translate_y)
+
+put_translate_z = { 0, 1, 0, 0 }
+MultiWriteModbus(0x300B, 4, "W", put_translate_y)
 
 -- 传感器检测
 sensor_state = 1
 -- 通信状态
 communication_status = 1
+
+-- 夹爪状态
+calw_status = { 0, 0, 0, 0 }
+
 ----------------value definition---------------------
-
-
 
 -- Y-报文头
 message_header = { "", "" }
@@ -359,23 +370,27 @@ function task_put_a_fishhook(GL_put_num, air_num,
                              air_move_num, x_point,
                              y_point, r_point,
                              delay_electroc_off, put_num,
-                             put_translate_value_y,
                              put_translate_value_x,
+                             put_translate_value_y,
+                             put_translate_value_z,
                              put_arrive_increment_value_z)
     if put_num == 1 then
         MArchP_top = MArchP_top_height
+        set_speed(100)
     else
         MArchP_top = MArchP_top_height_put
+        set_speed(100)
     end
+
 
     MArchP(GL_put_num +
         X(tonumber(x_point)) +
         Y(tonumber(y_point)) +
-        Z(10) +
+        Z(7) +
         RZ(tonumber(r_point)),
         MArchP_top, 50, 50
     )
-
+    --set_speed(speed_put_translate_value)
     MovL(GL_put_num +
         X(tonumber(x_point)) +
         Y(tonumber(y_point)) +
@@ -392,17 +407,20 @@ function task_put_a_fishhook(GL_put_num, air_num,
     MovL(GL_put_num +
         X(tonumber(x_point) + put_translate_value_x) +
         Y(tonumber(y_point) + put_translate_value_y) +
+        Z(put_translate_value_z) +
         RZ(tonumber(r_point))
     )
 
-    set_speed(speed_put_translate_z_value)
+    calw_status[air_num] = 0
 
-    MovL(GL_put_num +
-        X(tonumber(x_point) + put_translate_value_x) +
-        Y(tonumber(y_point) + put_translate_value_y) +
-        Z(20) +
-        RZ(tonumber(r_point))
+    --[[
+        MovL( GL_put_num +
+    X(tonumber(x_point) + put_translate_value_x) +
+    Y(tonumber(y_point) + put_translate_value_y) +
+    Z(put_translate_value_z + 20) +
+    RZ(tonumber(r_point))
     )
+    ]]
 
     set_speed(speed_value)
 end
@@ -428,8 +446,9 @@ function task_put_all_fishhook(fishhook_num)
             put_positions_y[tool_serial_number],
             put_positions_r[tool_serial_number],
             electroc_off_put_delay[tool_serial_number],
-            i, put_translate_y[tool_serial_number],
-            put_translate_x[tool_serial_number],
+            i, put_translate_x[tool_serial_number],
+            put_translate_y[tool_serial_number],
+            put_translate_z[tool_serial_number],
             put_arrive_z[tool_serial_number])
     end
 
@@ -441,6 +460,11 @@ function task_pick_a_fishhook(i, tool_num, air_num,
                               air_move_num, x_point,
                               y_point, r_point, GL_pick_name,
                               increment_pick_value_z)
+    if calw_status[air_num] ~= 0 then
+        print("air:" .. air_num .. " already taking out the fishhook")
+        return
+    end
+
     ChangeTF(tool_num)
 
     MArchP_top = 0
@@ -473,6 +497,8 @@ function task_pick_a_fishhook(i, tool_num, air_num,
 
     DELAY(0.2)
     DO(air_num, OFF)
+
+    calw_status[air_num] = 1
 
     repeat until DI(air_origin_num) == ON
     ChangeTF(0)
@@ -599,6 +625,65 @@ function clear_all_msg(num)
 end
 
 -- 抛料
+function throw_ng_fishhook(point)
+    highZ1 = RobotZ("Z")
+    highZ2 = ReadPoint(point, "Z")
+    -- 气缸关
+
+    -- 定义一个表 pick_ng_status，记录每个夹爪的鱼钩状态，默认正常为 1
+    local pick_ng_status = { 1, 1, 1, 1 }
+    -- 定义一个变量 rotation_state，记录旋转状态，默认为 180
+    local rotation_state = 180
+
+    -- 循环遍历 put_positions_x 数组
+    for num = 1, #put_positions_x do
+        -- 如果 put_positions_x[num] 为 0
+        if put_positions_x[num] == 0 then
+            -- 如果 put_positions_y[num]、put_positions_r[num] 都为 0
+            if put_positions_y[num] == 0 and put_positions_r[num] == 0 then
+                -- 将 pick_ng_status[num] 置为 0，表示夹爪的鱼钩状态为不正常
+                pick_ng_status[num] = 0
+                -- 如果 num 为 1 或 2
+                if num == 1 or num == 2 then
+                    -- 将 rotation_state 置为 0，表示旋转状态为静止
+                    rotation_state = 0
+                end
+            end
+        end
+    end
+
+    -- 执行 MArchP 函数，参数为点坐标、顶部高度及两个高程值
+    MArchP(point + RZ(rotation_state), MArchP_top_height, highZ1, highZ2)
+
+    -- 循环遍历 pick_ng_status 数组
+    for num = 1, #pick_ng_status do
+
+        -- 如果 pick_ng_status[num] 为 0
+        if pick_ng_status[num] == 0 then
+
+            -- 如果 rotation_state 为 0，且 num 为 3 或 4
+            if rotation_state == 0 and (num == 3 or num == 4) then
+                -- 将 rotation_state 置为 180，表示旋转状态为 180°
+                rotation_state = 180
+                -- 执行 MArchP 函数，参数为点坐标、顶部高度及两个高程值
+                MArchP(point + RZ(rotation_state), MArchP_top_height, highZ1, highZ2)
+            end
+
+            DO(DO_electroc[num], OFF)
+            DO(DO_airBox[num], ON)
+            WAIT(DI, DI_air_move[num], ON)
+
+            DO(DO_airBox[num], OFF)
+            WAIT(DI, DI_air_move[num], ON)
+
+            calw_status[num] = 0
+        end
+    end
+
+    DO(throw_completed, ON)
+end
+
+-- 抛料
 function drop(point)
     highZ1 = RobotZ("Z")
     highZ2 = ReadPoint(point, "Z")
@@ -618,32 +703,19 @@ function drop(point)
     set_io_states(DO_airBox, "OFF")
     WAIT(DI, DI_air_origin[#DI_air_origin], ON)
 
-    --[[
-        set_io_states(DO_airBox,"ON")
-    WAIT(DI,DI_air_move[#DI_air_move],ON)
-
-    set_io_states(DO_airBox,"OFF")
-    WAIT(DI,DI_air_origin[#DI_air_origin],ON)
-    ]]
-
     --旋转180度再抛料
     MArchP(point + RZ(180), MArchP_top_height, highZ1, highZ2)
 
     -- 气缸开
     set_io_states(DO_airBox, "ON")
+
+    calw_status = { 0, 0, 0, 0 }
+    
     WAIT(DI, DI_air_move[#DI_air_move], ON)
 
     -- 气缸关
     set_io_states(DO_airBox, "OFF")
     WAIT(DI, DI_air_origin[#DI_air_origin], ON)
-
-    --[[
-        set_io_states(DO_airBox,"ON")
-    WAIT(DI,DI_air_move[#DI_air_move],ON)
-
-    set_io_states(DO_airBox,"OFF")
-    WAIT(DI,DI_air_origin[#DI_air_origin],ON)
-        ]]
 
     DO(throw_completed, ON)
 end
@@ -690,6 +762,15 @@ function Tcp()
     up_received_message = PC1:Receive()
     down_received_message = PC2:Receive()
 end
+
+--[[
+USER DI9	机器人去等待位
+USER DI10	机器人去取料位
+USER DI11	机器人去放料位
+USER DI12	机器人去抛料位1
+USER DI13	机器人去抛料位2
+]]
+
 
 function Main()
     no_electroc_signal = ReadModbus(0x1001, "W")
@@ -774,7 +855,7 @@ function Main()
         -- 设置前往等待位置标记为已关闭
         DO(to_waiting_position, OFF)
         -- 投掷
-        drop(GL_throw_position[1])
+        throw_ng_fishhook(GL_throw_position[1])
         -- 设置投掷完成标记为已开启
         DO(throw_completed, ON)
 
@@ -836,12 +917,7 @@ while sensor_state and communication_status do
         speed_put_translate_z_value = 5
     end
 
-    electroc_off_put_delay = { electroc_off_put_delay_value, electroc_off_put_delay_value, electroc_off_put_delay_value,
-        electroc_off_put_delay_value }
-
-
     Tcp()
-    set_speed(speed_value)
     Main()
     collectgarbage()
 end
