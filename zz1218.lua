@@ -112,8 +112,8 @@ GL_up_camera_calibrate_position = "GL_calibrate"
 
 ----------------value definition---------------------
 -- 速度
-speed_value = 100
-speed_put_translate_value = 50
+speed_value = 50
+speed_put_translate_value = 5
 speed_put_translate_z_value = 5
 MultiWriteModbus(0x3000, 3, "W", { speed_value, speed_put_translate_value, speed_put_translate_z_value })
 
@@ -126,24 +126,24 @@ MArchP_top_height_pick = pick_postion_z + 10
 
 --夹爪z轴高度
 pick_arrive_z = { 0, 0, 0, 0 }
-MultiWriteModbus(0x3011, 4, "W", pick_arrive_z)
+--MultiWriteModbus(0x3011, 4, "W", pick_arrive_z)
 
 put_arrive_z = { -0.8, -2.3, -0.8, -0.5 }
-MultiWriteModbus(0x3015, 4, "W", put_arrive_z)
+--MultiWriteModbus(0x3015, 4, "W", put_arrive_z)
 
 --断磁后停留时间
 electroc_off_put_delay = { 0.3, 0.3, 0.5, 0.3 }
-MultiWriteModbus(0x301A, 4, "W", electroc_off_put_delay)
+--MultiWriteModbus(0x301A, 4, "W", electroc_off_put_delay)
 
 --抹的方向
 put_translate_x = { 0, 2, 5, 0 }
-MultiWriteModbus(0x3003, 4, "W", put_translate_x)
+--MultiWriteModbus(0x3003, 4, "W", put_translate_x)
 
 put_translate_y = { -8, -8, 8, 8 }
-MultiWriteModbus(0x3007, 4, "W", put_translate_y)
+--MultiWriteModbus(0x3007, 4, "W", put_translate_y)
 
 put_translate_z = { 0, 1, 0, 0 }
-MultiWriteModbus(0x300B, 4, "W", put_translate_y)
+--MultiWriteModbus(0x300B, 4, "W", put_translate_y)
 
 -- 传感器检测
 sensor_state = 1
@@ -657,10 +657,8 @@ function throw_ng_fishhook(point)
 
     -- 循环遍历 pick_ng_status 数组
     for num = 1, #pick_ng_status do
-
         -- 如果 pick_ng_status[num] 为 0
         if pick_ng_status[num] == 0 then
-
             -- 如果 rotation_state 为 0，且 num 为 3 或 4
             if rotation_state == 0 and (num == 3 or num == 4) then
                 -- 将 rotation_state 置为 180，表示旋转状态为 180°
@@ -710,7 +708,7 @@ function drop(point)
     set_io_states(DO_airBox, "ON")
 
     calw_status = { 0, 0, 0, 0 }
-    
+
     WAIT(DI, DI_air_move[#DI_air_move], ON)
 
     -- 气缸关
@@ -900,11 +898,15 @@ while sensor_state and communication_status do
     speed_put_translate_value = ReadModbus(0x3001, "W")
     speed_put_translate_z_value = ReadModbus(0x3002, "W")
 
-    electroc_off_put_delay_value = ReadModbus(0x3003, "W")
+    --[[ electroc_off_put_delay_value = ReadModbus(0x301A, "W")
 
-    put_translate_x = MultiReadModbus(0x300A, 4, "W")
-    put_translate_y = MultiReadModbus(0x3006, 4, "W")
+    pick_arrive_z = MultiReadModbus(0x3011, 4, "W")
+    put_arrive_z =  MultiReadModbus(0x3015, 4, "W")
 
+    put_translate_x = MultiReadModbus(0x3003, 4, "W")
+    put_translate_y = MultiReadModbus(0x3007, 4, "W")
+    put_translate_z = MultiReadModbus(0x300B, 4, "W")
+ ]]
     if speed_value <= 0 or speed_value > 100 then
         speed_value = 5
     end
